@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { sendChatMessage } from '../utils/api'
 
-export default function ChatBot() {
+export default function ChatBot({ inline = false }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -44,18 +44,20 @@ export default function ChatBot() {
     }
   }
 
+  const showChat = inline || isOpen
+
   return (
-    <div className={`chatbot-wrapper ${isOpen ? 'open' : ''}`}>
-      {!isOpen && (
+    <div className={inline ? 'chatbot-inline' : `chatbot-wrapper ${isOpen ? 'open' : ''}`} style={inline ? { display: 'flex', flexDirection: 'column', height: '100%', width: '100%' } : {}}>
+      {!inline && !isOpen && (
         <button className="chatbot-toggle-btn" onClick={toggleChat} title="Need help? Ask the Data Assistant">
           💬 Chat
         </button>
       )}
-      {isOpen && (
-        <div className="chatbot-window">
-          <div className="chatbot-header">
+      {showChat && (
+        <div className={inline ? 'chatbot-window inline' : 'chatbot-window'} style={inline ? { position: 'static', width: '100%', height: '100%', boxShadow: 'none', borderRadius: 0, border: 'none', display: 'flex', flexDirection: 'column' } : {}}>
+          <div className="chatbot-header" style={inline ? { borderRadius: 0 } : {}}>
             <h4>Data Assistant</h4>
-            <button className="chatbot-close-btn" onClick={toggleChat}>✕</button>
+            {!inline && <button className="chatbot-close-btn" onClick={toggleChat}>✕</button>}
           </div>
           <div className="chatbot-messages">
             {messages.length === 0 && (

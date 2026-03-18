@@ -1,4 +1,4 @@
-from __future__ import annotations
+
 
 # load_dotenv is called HERE, once, before any other local imports.
 from pathlib import Path
@@ -9,24 +9,51 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from security import limiter
+
+MAX_PROMPT_LEN = 500
+MAX_REFINE_LEN = 300
+MAX_CHAT_LEN = 500
+
+def _sanitize_text(text: str) -> str:
+    if not text: return ""
+    return "".join(c for c in text if "\x20" <= c <= "\x7E" or c in "\n\r\t").strip()
 
 from ingest import ingest_csv
 from query_pipeline import run_query, run_refine
 from session_store import get_session, set_session, SessionData
 
 app = FastAPI(title="InsightFlow API")
+app.state.limiter = limiter
 
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down and try again later."}
+    )
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
+IS_VERCEL = os.environ.get("VERCEL", "") == "1"
+
+if IS_VERCEL:
+    import tempfile
+    SESSIONS_DIR = Path(tempfile.gettempdir()) / "insightflow_sessions"
+else:
+    SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
+
 SESSIONS_DIR.mkdir(exist_ok=True)
 
 GFG_CSV = Path(__file__).parent.parent / "data" / "Customer_Behaviour__Online_vs_Offline_.csv"
@@ -83,10 +110,12 @@ def health():
 
 @app.get("/health/summary")
 def health_summary():
-    api_key = _clean_env("GROQ_API_KEY")
+    from llm_providers import _get_all_keys
+    keys = _get_all_keys()
+    
     return {
         "api":     True,
-        "groq":  bool(api_key) and len(api_key) > 20,
+        "keys_loaded": len(keys),
         "dataset": GFG_CSV.exists(),
     }
 
@@ -128,7 +157,8 @@ def debug_llm():
 
 
 @app.post("/preload")
-def preload(x_session_id: Optional[str] = Header(None)):
+@limiter.limit("5/minute")
+def preload(request: Request, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
 
     # Return cached schema if session already loaded — avoids re-ingesting on every nav
@@ -176,15 +206,20 @@ def preload(x_session_id: Optional[str] = Header(None)):
     }
 
 
-@app.post("/upload-csv")
+@app.post("/upload-csv", response_model=None)
+@limiter.limit("3/minute")
 async def upload_csv(
+    request: Request,
     file: UploadFile = File(...),
     x_session_id: Optional[str] = Header(None),
 ):
     sid = _get_sid(x_session_id)
 
-    if not file.filename or not file.filename.lower().endswith(".csv"):
+    safe_filename = "".join(c for c in (file.filename or "") if c.isalnum() or c in "._-").strip()
+    if not safe_filename or not safe_filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+    
+    file.filename = safe_filename
 
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:
@@ -220,7 +255,8 @@ async def upload_csv(
 
 
 @app.get("/schema")
-def get_schema(x_session_id: Optional[str] = Header(None)):
+@limiter.limit("10/minute")
+def get_schema(request: Request, x_session_id: Optional[str] = Header(None)):
     sid  = _get_sid(x_session_id)
     sess = get_session(sid)
     if not sess:
@@ -247,7 +283,8 @@ def get_schema(x_session_id: Optional[str] = Header(None)):
 
 
 @app.get("/data-preview")
-def data_preview(x_session_id: Optional[str] = Header(None)):
+@limiter.limit("10/minute")
+def data_preview(request: Request, x_session_id: Optional[str] = Header(None)):
     sid  = _get_sid(x_session_id)
     sess = get_session(sid)
     if not sess or not sess.schema:
@@ -277,7 +314,8 @@ def data_preview(x_session_id: Optional[str] = Header(None)):
 
 
 @app.post("/auto-report")
-def auto_report(x_session_id: Optional[str] = Header(None)):
+@limiter.limit("2/minute")
+def auto_report(request: Request, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
     from query_pipeline import run_auto_report
     result = run_auto_report(sid)
@@ -287,50 +325,62 @@ def auto_report(x_session_id: Optional[str] = Header(None)):
 
 
 @app.post("/query")
-def query(req: QueryRequest, x_session_id: Optional[str] = Header(None)):
+@limiter.limit("10/minute")
+def query(request: Request, req: QueryRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
-    if not req.prompt or not req.prompt.strip():
+    sanitized_prompt = _sanitize_text(req.prompt)
+    if not sanitized_prompt:
         raise HTTPException(status_code=400, detail="prompt must not be empty")
+    if len(sanitized_prompt) > MAX_PROMPT_LEN:
+        raise HTTPException(status_code=400, detail=f"Query too long (max {MAX_PROMPT_LEN} chars)")
 
-    result = run_query(req.prompt.strip(), sid)
+    result = run_query(sanitized_prompt, sid)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
 
 
 @app.post("/refine")
-def refine(req: RefineRequest, x_session_id: Optional[str] = Header(None)):
+@limiter.limit("10/minute")
+def refine(request: Request, req: RefineRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
-    if not req.message or not req.message.strip():
+    sanitized_msg = _sanitize_text(req.message)
+    if not sanitized_msg:
         raise HTTPException(status_code=400, detail="message must not be empty")
+    if len(sanitized_msg) > MAX_REFINE_LEN:
+        raise HTTPException(status_code=400, detail=f"Query too long (max {MAX_REFINE_LEN} chars)")
 
-    result = run_refine(req.message.strip(), sid, req.original_prompt or "")
+    result = run_refine(sanitized_msg, sid, _sanitize_text(req.original_prompt) or "")
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
 
 
 @app.post("/chat")
-def chat(req: ChatRequest, x_session_id: Optional[str] = Header(None)):
+@limiter.limit("5/minute")
+def chat(request: Request, req: ChatRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
-    if not req.message or not req.message.strip():
+    sanitized_msg = _sanitize_text(req.message)
+    if not sanitized_msg:
         raise HTTPException(status_code=400, detail="message must not be empty")
+    if len(sanitized_msg) > MAX_CHAT_LEN:
+        raise HTTPException(status_code=400, detail=f"Message too long (max {MAX_CHAT_LEN} chars)")
 
     from query_pipeline import run_chat
     from session_store import get_session, set_session
     
     sess = get_session(sid)
     if sess:
-        sess.chat_history.append({"role": "user", "content": req.message.strip()})
+        sess.chat_history.append({"role": "user", "content": sanitized_msg})
         # Pass all history except the current message just appended
-        result = run_chat(req.message.strip(), sess.chat_history[:-1], sid)
+        result = run_chat(sanitized_msg, sess.chat_history[:-1], sid)
         if "error" not in result:
             sess.chat_history.append({"role": "assistant", "content": result.get("response", "")})
             set_session(sid, sess)
         else:
             sess.chat_history.pop()
     else:
-        result = run_chat(req.message.strip(), req.history or [], sid)
+        result = run_chat(sanitized_msg, req.history or [], sid)
 
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -349,7 +399,8 @@ def clear_history(x_session_id: Optional[str] = Header(None)):
 
 
 @app.post("/overview")
-def dataset_overview(x_session_id: Optional[str] = Header(None)):
+@limiter.limit("5/minute")
+def dataset_overview(request: Request, x_session_id: Optional[str] = Header(None)):
     """
     Generate an AI overview of the loaded dataset.
     Called once after dataset loads. Returns a plain-English summary

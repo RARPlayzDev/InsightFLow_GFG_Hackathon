@@ -127,146 +127,12 @@ def extract_json(text: str) -> Dict:
 
 # ── LLM call with key rotation + response cache ────────────────────────────────
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
-_RESPONSE_CACHE: Dict[str, Dict] = {}
-_KEY_INDEX = 0
-
-
-def _clean_env(key: str, default: str = "") -> str:
-    v = os.getenv(key, default).strip()
-    if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
-        v = v[1:-1].strip()
-    return v
-
-
-def _get_api_keys() -> List[str]:
-    keys = []
-    primary = _clean_env("GROQ_API_KEY")
-    if primary:
-        keys.append(primary)
-    for i in range(2, 10):
-        k = _clean_env(f"GROQ_API_KEY_{i}")
-        if k:
-            keys.append(k)
-    return keys
-
-
-def _cache_key(prompt: str) -> str:
-    return hashlib.sha256(prompt.encode()).hexdigest()[:16]
-
-
-def call_llm(prompt: str) -> Dict:
-    global _KEY_INDEX
-
-    ck = _cache_key(prompt)
-    if ck in _RESPONSE_CACHE:
-        print(f"[LLM] Cache hit ({ck})")
-        return copy.deepcopy(_RESPONSE_CACHE[ck])
-
-    keys = _get_api_keys()
-    if not keys:
-        return _unavailable("GROQ_API_KEY not configured. Add it to .env.")
-
-    model        = _clean_env("GROQ_MODEL", "llama-3.3-70b-versatile")
-    retry_delays = [1, 2, 4]
-    max_attempts = len(keys) * (len(retry_delays) + 1)
-
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a Business Intelligence analyst. "
-                    "You MUST respond with ONLY a valid JSON object. "
-                    "No markdown, no backticks, no explanation — raw JSON only."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.1,
-        "max_tokens":  4096,
-    }
-
-    attempt    = 0
-    keys_tried = 0
-
-    while attempt < max_attempts:
-        attempt += 1
-        api_key   = keys[_KEY_INDEX % len(keys)]
-        headers   = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        key_label = f"key[{(_KEY_INDEX % len(keys)) + 1}/{len(keys)}]"
-
-        try:
-            print(f"[LLM] → Groq/{model} {key_label} (attempt {attempt})")
-            r = httpx.post(GROQ_API_URL, json=payload, headers=headers, timeout=45.0)
-            print(f"[LLM] ← HTTP {r.status_code}")
-
-            if r.status_code == 429:
-                _KEY_INDEX += 1
-                keys_tried += 1
-                if keys_tried < len(keys):
-                    print(f"[LLM] 429 — rotating to next key", file=sys.stderr)
-                    continue
-                wait = retry_delays[min(keys_tried - len(keys), len(retry_delays) - 1)]
-                print(f"[LLM] All keys rate-limited. Waiting {wait}s…", file=sys.stderr)
-                time.sleep(wait)
-                keys_tried = 0
-                continue
-
-            if r.status_code != 200:
-                print(f"[LLM] ERROR {r.status_code}: {r.text[:600]}", file=sys.stderr)
-                try:
-                    msg = r.json().get("error", {}).get("message", "")
-                    if msg:
-                        return _unavailable(f"Groq API error: {msg}")
-                except Exception:
-                    pass
-                return _unavailable(f"Groq API returned HTTP {r.status_code}.")
-
-            choices = r.json().get("choices", [])
-            if not choices:
-                return _unavailable("Groq returned an empty response.")
-
-            raw = choices[0].get("message", {}).get("content", "")
-            if not raw.strip():
-                return _unavailable("Groq returned empty content.")
-
-            print(f"[LLM] Parsing JSON from {len(raw)}-char response…")
-            result = extract_json(raw)
-            print("[LLM] ✓ Parsed.")
-
-            _RESPONSE_CACHE[ck] = result
-            return copy.deepcopy(result)
-
-        except httpx.ReadTimeout:
-            print(f"[LLM] ReadTimeout (attempt {attempt})", file=sys.stderr)
-            time.sleep(retry_delays[min(attempt - 1, len(retry_delays) - 1)])
-        except httpx.ConnectError as e:
-            print(f"[LLM] Cannot connect: {e}", file=sys.stderr)
-            return _unavailable("Cannot reach Groq API. Check internet connection.")
-        except httpx.TimeoutException:
-            time.sleep(retry_delays[min(attempt - 1, len(retry_delays) - 1)])
-        except (ValueError, json.JSONDecodeError) as e:
-            print(f"[LLM] JSON parse error: {e}", file=sys.stderr)
-            return _parse_error()
-        except (IndexError, KeyError) as e:
-            print(f"[LLM] Response structure error: {e}", file=sys.stderr)
-            traceback.print_exc()
-            return _unavailable("Groq response had unexpected structure.")
-        except Exception:
-            print("[LLM] Unexpected exception:", file=sys.stderr)
-            traceback.print_exc()
-            return _unavailable("Unexpected error calling Groq.")
-
-    return _unavailable("All Groq API keys are rate-limited. Add more keys to .env or wait.")
-
+from llm_providers import call_llm_ladder as call_llm
 
 # ── STAGE 1: SQL generation ────────────────────────────────────────────────────
 
 def _prompt_stage1(schema_context: str, user_prompt: str, table_name: str,
-                   error_feedback: str = "") -> str:
+                   error_feedback: str = "", last_contexts: list = None) -> str:
     error_section = ""
     if error_feedback:
         error_section = f"""
@@ -276,11 +142,18 @@ Write corrected SQL that avoids this error.
 
 """
 
+    context_section = ""
+    if last_contexts:
+        context_section = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPREVIOUS QUERIES CONTEXT\nUse this to resolve 'same as before' or 'now show' references.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        for i, ctx in enumerate(last_contexts, 1):
+            context_section += f"Q{i}: {ctx['prompt']}\nSQL: {ctx['sql']}\nCols: {', '.join(ctx['columns'])}\n\n"
+
     return f"""You are a SQL expert writing queries for SQLite.
 YOUR ONLY JOB: write correct SQL. Do not decide chart types.
 
 {schema_context}
 
+{context_section}
 QUESTION: {user_prompt}
 {error_section}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -357,6 +230,8 @@ RESPOND WITH ONLY THIS JSON:
 
 {{
   "cannot_answer": false,
+  "clarification_needed": false,
+  "clarification_prompt": "",
   "reason": "",
   "charts": [
     {{
@@ -377,6 +252,9 @@ Limits: 1-3 chart SQLs, 2-4 KPI SQLs.
 
 If the question CANNOT be answered (asks about time trends with no date column, asks about columns that don't exist):
 {{"cannot_answer": true, "reason": "clear explanation", "charts": [], "kpis": []}}
+
+If the question is TOO AMBIGUOUS and you must ask the user (e.g. "show spending" with multiple completely different spending columns):
+{{"clarification_needed": true, "clarification_prompt": "Did you mean online spending or store spending?", "charts": [], "kpis": []}}
 """
 
 
@@ -607,6 +485,7 @@ def _run_two_stage(
     schema: SchemaPayload,
     db_path: str,
     schema_context: str,
+    last_contexts: list = None
 ) -> Dict:
     """
     Execute the two-stage pipeline and return the assembled result dict.
@@ -615,12 +494,20 @@ def _run_two_stage(
     """
 
     # ── Stage 1: Generate SQL ──────────────────────────────────────
-    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name))
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
 
     if stage1.get("cannot_answer"):
         return {
             "cannot_answer": True,
             "reason": stage1.get("reason", ""),
+            "charts": [], "kpis": [], "insight": "", "suggestions": [],
+        }
+
+    if stage1.get("clarification_needed"):
+        return {
+            "cannot_answer": False,
+            "clarification_needed": True,
+            "clarification_prompt": stage1.get("clarification_prompt", "Please clarify your request."),
             "charts": [], "kpis": [], "insight": "", "suggestions": [],
         }
 
@@ -789,6 +676,7 @@ def _run_two_stage(
         "charts":         chart_responses,
         "kpis":           kpi_responses,
         "insight":        insight,
+        "provider":       stage1.get("provider_used", "groq"),
         "_chart_records": chart_records,  # internal — stripped before API response
     }
 
@@ -857,7 +745,7 @@ def run_query(prompt: str, session_id: str) -> Dict:
         }
 
     ctx    = build_schema_context(schema, query=prompt)
-    result = _run_two_stage(prompt, schema, session.db_path, ctx)
+    result = _run_two_stage(prompt, schema, session.db_path, ctx, last_contexts=session.last_contexts)
 
     chart_records = result.pop("_chart_records", [])
     suggestions   = generate_suggestions(prompt, result.get("charts", []), schema)
@@ -873,6 +761,20 @@ def run_query(prompt: str, session_id: str) -> Dict:
                        for k in result.get("kpis", [])],
             insight=result.get("insight", ""),
         ))
+        
+        # Track context for follow-up questions
+        used_cols = set()
+        for c in result.get("charts", []):
+            if c.get("x_col"): used_cols.add(c["x_col"])
+            for yc in c.get("y_cols", []): used_cols.add(yc)
+            if c.get("color_col"): used_cols.add(c["color_col"])
+            
+        session.last_contexts.append({
+            "prompt": prompt,
+            "sql": result.get("charts", [])[0].get("sql", "") if result.get("charts") else "",
+            "columns": list(used_cols)
+        })
+        session.last_contexts = session.last_contexts[-3:]
     else:
         session.history.append(QueryRecord(
             prompt=prompt, timestamp=time.time(), chart_specs=[], kpi_specs=[],
@@ -912,7 +814,7 @@ def run_refine(message: str, session_id: str, original_prompt: str) -> Dict:
     )
 
     ctx    = build_schema_context(schema, query=message)
-    result = _run_two_stage(combined_prompt, schema, session.db_path, ctx)
+    result = _run_two_stage(combined_prompt, schema, session.db_path, ctx, last_contexts=session.last_contexts)
 
     chart_records = result.pop("_chart_records", [])
     result.pop("suggestions", None)  # refine doesn't return suggestions

@@ -113,6 +113,23 @@ def build_schema_context(schema: SchemaPayload, query: str = "") -> str:
         )
 
         if in_focus:
+            # Task 15: Schema Stats
+            if col.sql_type in ("INTEGER", "REAL") and col.samples:
+                try:
+                    num_samples = [float(s) for s in col.samples if s is not None and str(s).strip()]
+                    if num_samples:
+                        c_min = min(num_samples)
+                        c_max = max(num_samples)
+                        c_mean = sum(num_samples) / len(num_samples)
+                        
+                        s_min = f"{int(c_min)}" if c_min.is_integer() else f"{c_min:.2f}"
+                        s_max = f"{int(c_max)}" if c_max.is_integer() else f"{c_max:.2f}"
+                        s_mean = f"{int(c_mean)}" if float(c_mean).is_integer() else f"{c_mean:.2f}"
+                        
+                        lines.append(f"    stats:       min={s_min}, max={s_max}, mean={s_mean}")
+                except ValueError:
+                    pass
+
             hint = ROLE_HINTS.get(col.role, "")
             if hint:
                 lines.append(f"    → {hint}")

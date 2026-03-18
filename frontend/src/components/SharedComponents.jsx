@@ -17,12 +17,62 @@ export function KpiCard({ label, value, format }) {
 // ── AI Insight Card ────────────────────────────────────────────────────────────
 export function InsightCard({ text }) {
   if (!text) return null
+
+  // Backwards compatibility with plain text
+  if (typeof text === 'string') {
+    return (
+      <div className="insight-card">
+        <div className="insight-icon">✦</div>
+        <div className="insight-content">
+          <div className="insight-label">AI Insight</div>
+          <div className="insight-text">{text}</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Structured insight rendering (Task 9)
+  const { headline, bullets = [], recommendation } = text
+  
+  if (!headline && bullets.length === 0 && !recommendation) return null
+  
   return (
-    <div className="insight-card">
+    <div className="insight-card structured">
       <div className="insight-icon">✦</div>
       <div className="insight-content">
         <div className="insight-label">AI Insight</div>
-        <div className="insight-text">{text}</div>
+        {headline && <div className="insight-headline">{headline}</div>}
+        {bullets.length > 0 && (
+          <ul className="insight-bullets">
+            {bullets.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+        )}
+        {recommendation && (
+          <div className="insight-recommendation">
+            <span style={{ fontWeight: 600, color: 'var(--primary)', marginRight: 6 }}>Action:</span>
+            {recommendation}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Clarification Card (Task 11) ───────────────────────────────────────────────
+export function ClarificationCard({ prompt, onUse }) {
+  if (!prompt) return null
+  return (
+    <div className="cannot-answer" style={{ background: 'var(--info-bg)', borderColor: '#93c5fd' }}>
+      <div className="cannot-answer-icon" style={{ background: 'var(--info)' }}>?</div>
+      <div style={{ flex: 1 }}>
+        <h4 style={{ color: 'var(--info)', marginBottom: 8 }}>Clarification Needed</h4>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: 16 }}>{prompt}</p>
+        <button 
+          className="btn btn-primary btn-sm"
+          onClick={() => onUse(prompt)}
+        >
+          Use this phrasing
+        </button>
       </div>
     </div>
   )

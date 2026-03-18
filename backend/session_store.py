@@ -76,6 +76,7 @@ class SessionData:
     last_prompt: str = ""
     history: List[QueryRecord] = field(default_factory=list)
     chat_history: List[Dict[str, str]] = field(default_factory=list)
+    last_contexts: List[Dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
 

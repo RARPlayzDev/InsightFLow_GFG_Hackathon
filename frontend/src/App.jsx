@@ -5,6 +5,7 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import History from './pages/History'
+import ThemeToggle from './components/ThemeToggle'
 
 function Navbar({ health }) {
   function statusColor() {
@@ -133,6 +134,7 @@ function Navbar({ health }) {
               : 'System ready'}
           </span>
         </div>
+        <ThemeToggle />
       </div>
     </nav>
   )

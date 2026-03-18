@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { getSchema, runQuery, runRefine, getOverview } from '../utils/api'
+import { getSchema, runQuery, runRefine, getOverview, getHistory } from '../utils/api'
 import DynamicChart from '../components/DynamicChart'
 import ExportButton from '../components/ExportButton'
 import DiagnosticModal from '../components/DiagnosticModal'
 import DataTable from '../components/DataTable'
 import {
-  KpiCard, InsightCard, CannotAnswer, SqlToggle, ChartSkeleton,
+  KpiCard, InsightCard, CannotAnswer, ClarificationCard, SqlToggle, ChartSkeleton,
 } from '../components/SharedComponents'
 import ChatBot from '../components/ChatBot'
 import FullReportWidget from '../components/FullReportWidget'
@@ -165,10 +165,19 @@ export default function Dashboard({ health }) {
   
   // Dashboard view toggle: 'analytics' | 'data'
   const [viewMode, setViewMode] = useState('analytics')
+  const [sidebarTab, setSidebarTab] = useState('schema') // schema, chat, history
+  const [historyItems, setHistoryItems] = useState([])
   
   const [showFullReport, setShowFullReport] = useState(false)
 
   const initialQueryFired = useRef(false)
+
+  // Fetch history when tab changes
+  useEffect(() => {
+    if (sidebarTab === 'history') {
+      getHistory().then(res => setHistoryItems(res.items || [])).catch(() => {})
+    }
+  }, [sidebarTab])
 
   // ── Load schema (passive — no auto-ingest) ───────────────────────────────────
   // We no longer auto-load the dataset on Dashboard mount. The user must
@@ -283,73 +292,107 @@ export default function Dashboard({ health }) {
 
       {/* ══ SIDEBAR ══════════════════════════════════════════════════════════════ */}
       <aside className="sidebar">
-        {!schema ? (
-          <div style={{ padding: 20 }}>
-            {loadError ? (
-              <div style={{ fontSize: '0.8rem', color: 'var(--danger)', lineHeight: 1.65 }}>
-                <strong>Error:</strong><br />{loadError}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  No dataset loaded
-                </div>
-                Go to{' '}
-                <a href="/upload" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
-                  onClick={e => { e.preventDefault(); window.location.href = '/upload' }}>
-                  Upload
-                </a>
-                {' '}to load the GFG dataset or upload your own CSV.
-              </div>
-            )}
+        {schema && (
+          <div className="sidebar-tabs">
+            <button className={`sidebar-tab ${sidebarTab === 'schema' ? 'active' : ''}`} onClick={() => setSidebarTab('schema')}>Schema</button>
+            <button className={`sidebar-tab ${sidebarTab === 'chat' ? 'active' : ''}`} onClick={() => setSidebarTab('chat')}>Chat</button>
+            <button className={`sidebar-tab ${sidebarTab === 'history' ? 'active' : ''}`} onClick={() => setSidebarTab('history')}>History</button>
           </div>
-        ) : (
-          <>
-            <div className="sidebar-header">
-              <h3>Dataset</h3>
-              <div className="dataset-name">{schema.dataset_name}</div>
-              <div className="dataset-meta">
-                <span className="meta-pill">{schema.row_count.toLocaleString()} rows</span>
-                <span className="meta-pill">{schema.columns.length} cols</span>
-                {!schema.has_date_column && (
-                  <span className="meta-pill warn" title="Time-series queries will be declined">
-                    ⚠ No date col
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="sidebar-section">
-              <div className="sidebar-section-label">Column Types</div>
-              <div className="role-breakdown">
-                {Object.entries(roleCount).map(([role, count]) => (
-                  <div className="role-row" key={role}>
-                    <div className="role-label-wrap">
-                      <div className={`role-dot role-${role}`} />
-                      <span style={{ fontSize: '0.79rem' }}>{role}</span>
-                    </div>
-                    <span className="role-count">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="sidebar-section" style={{ borderBottom: 'none' }}>
-              <div className="sidebar-section-label">All Columns</div>
-              <div className="col-list">
-                {schema.columns.map(c => (
-                  <div className="col-item" key={c.safe_name}
-                    title={`${c.original_name} · ${c.role} · ${c.nunique} unique values`}>
-                    <div className={`role-dot role-${c.role}`} style={{ flexShrink: 0 }} />
-                    <span className="col-item-name">{c.safe_name}</span>
-                    {c.is_ambiguous && <span title="Ambiguous" style={{ color: 'var(--warning)' }}>⚠</span>}
-                    <span className="col-item-nunique">{c.nunique}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
         )}
+
+        <div className="sidebar-content-area">
+          {!schema ? (
+            <div style={{ padding: 20 }}>
+              {loadError ? (
+                <div style={{ fontSize: '0.8rem', color: 'var(--danger)', lineHeight: 1.65 }}>
+                  <strong>Error:</strong><br />{loadError}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    No dataset loaded
+                  </div>
+                  Go to{' '}
+                  <a href="/upload" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}
+                    onClick={e => { e.preventDefault(); window.location.href = '/upload' }}>
+                    Upload
+                  </a>
+                  {' '}to load the GFG dataset or upload your own CSV.
+                </div>
+              )}
+            </div>
+          ) : sidebarTab === 'schema' ? (
+            <>
+              <div className="sidebar-header">
+                <h3>Dataset</h3>
+                <div className="dataset-name">{schema.dataset_name}</div>
+                <div className="dataset-meta">
+                  <span className="meta-pill">{schema.row_count.toLocaleString()} rows</span>
+                  <span className="meta-pill">{schema.columns.length} cols</span>
+                  {!schema.has_date_column && (
+                    <span className="meta-pill warn" title="Time-series queries will be declined">
+                      ⚠ No date col
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="sidebar-section">
+                <div className="sidebar-section-label">Column Types</div>
+                <div className="role-breakdown">
+                  {Object.entries(roleCount).map(([role, count]) => (
+                    <div className="role-row" key={role}>
+                      <div className="role-label-wrap">
+                        <div className={`role-dot role-${role}`} />
+                        <span style={{ fontSize: '0.79rem' }}>{role}</span>
+                      </div>
+                      <span className="role-count">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sidebar-section" style={{ borderBottom: 'none' }}>
+                <div className="sidebar-section-label">All Columns</div>
+                <div className="col-list">
+                  {schema.columns.map(c => (
+                    <div className="col-item" key={c.safe_name}
+                      title={`${c.original_name} · ${c.role} · ${c.nunique} unique values`}>
+                      <div className={`role-dot role-${c.role}`} style={{ flexShrink: 0 }} />
+                      <span className="col-item-name">{c.safe_name}</span>
+                      {c.is_ambiguous && <span title="Ambiguous" style={{ color: 'var(--warning)' }}>⚠</span>}
+                      <span className="col-item-nunique">{c.nunique}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : sidebarTab === 'chat' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+              <ChatBot inline={true} />
+            </div>
+          ) : sidebarTab === 'history' ? (
+            <div style={{ padding: 16 }}>
+              <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Past Queries</h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>Click to replay a query.</p>
+              {historyItems.length === 0 ? (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No queries yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {historyItems.map((hi, i) => (
+                    <button key={i} onClick={() => { setQuery(hi.prompt); submitQuery(hi.prompt) }}
+                      style={{ textAlign: 'left', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-primary)', lineHeight: 1.4, transition: 'all 0.15s' }}
+                      onMouseOver={e => e.currentTarget.style.borderColor = 'var(--primary-muted)'}
+                      onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                    >
+                      {hi.prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
       </aside>
 
       {/* ══ MAIN ════════════════════════════════════════════════════════════════ */}
@@ -482,6 +525,12 @@ export default function Dashboard({ health }) {
           {!loading && result && (
             <div id="results-area" className="fade-in">
               {result.cannot_answer && <CannotAnswer reason={result.reason} />}
+              {result.clarification_needed && (
+                <ClarificationCard 
+                  prompt={result.clarification_prompt} 
+                  onUse={(p) => { setQuery(p); submitQuery(p); }} 
+                />
+              )}
 
               {result.kpis?.length > 0 && (
                 <div className="kpi-grid">
@@ -593,11 +642,18 @@ export default function Dashboard({ health }) {
 
               {!result.cannot_answer && result.charts?.length > 0 && (
                 <div className="action-bar">
-                  <span className="action-bar-label">
-                    Query:{' '}
-                    <em style={{ color: 'var(--text-secondary)' }}>
-                      "{lastPrompt.length > 80 ? lastPrompt.slice(0, 80) + '…' : lastPrompt}"
-                    </em>
+                  <span className="action-bar-label" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span>
+                      Query:{' '}
+                      <em style={{ color: 'var(--text-secondary)' }}>
+                        "{lastPrompt.length > 80 ? lastPrompt.slice(0, 80) + '…' : lastPrompt}"
+                      </em>
+                    </span>
+                    {result.provider && (
+                      <span className={`badge ${result.provider === 'gemini' ? 'badge-purple' : 'badge-yellow'}`} title={`Powered by ${result.provider === 'gemini' ? 'Google Gemini' : 'Groq'}`}>
+                        {result.provider === 'gemini' ? '🔷 Gemini' : '⚡ Groq'}
+                      </span>
+                    )}
                   </span>
                   <ExportButton targetId="results-area" prompt={lastPrompt} result={result} />
                 </div>
@@ -637,7 +693,7 @@ export default function Dashboard({ health }) {
         </div>
 
       {showDiag && <DiagnosticModal health={health} onClose={() => setShowDiag(false)} />}
-      <ChatBot />
+      {!schema || sidebarTab !== 'chat' ? <ChatBot /> : null}
       {showFullReport && <FullReportWidget onComplete={() => setShowFullReport(false)} />}
     </div>
   )

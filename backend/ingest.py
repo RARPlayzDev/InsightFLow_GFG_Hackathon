@@ -116,7 +116,8 @@ def sanitize_column_names(names: List[str]) -> List[str]:
     seen: Dict[str, int] = {}
     result = []
     for name in names:
-        safe = re.sub(r"[^a-zA-Z0-9_]", "_", name.strip()).lower()
+        safe_name = name if name is not None else "col"
+        safe = re.sub(r"[^a-zA-Z0-9_]", "_", str(safe_name).strip()).lower()
         safe = re.sub(r"_+", "_", safe).strip("_") or "col"
         if safe[0].isdigit():
             safe = "col_" + safe
@@ -129,7 +130,7 @@ def sanitize_column_names(names: List[str]) -> List[str]:
 # ── 5. SQL type inference ─────────────────────────────────────────
 
 def _infer_sql_type(values: List[str]) -> str:
-    non_empty = [v for v in values if v.strip()]
+    non_empty = [v for v in values if v is not None and str(v).strip()]
     if not non_empty:
         return "TEXT"
     int_pat = re.compile(r"^-?\d+$")
@@ -148,7 +149,7 @@ def classify_column(sql_type: str, nunique: int, total: int, values: List[str]) 
     Map a column to one of: continuous | score | measure | dimension | id | datetime | text
     Uses the module-level _DATE_PAT constant (compiled once, not per-call).
     """
-    non_empty = [v for v in values if v.strip()]
+    non_empty = [v for v in values if v is not None and str(v).strip()]
 
     # Date check first — applies to TEXT columns that look like dates
     if non_empty and _DATE_PAT.match(non_empty[0]):
@@ -240,7 +241,7 @@ def ingest_csv(raw: bytes, dataset_name: str, db_path: str) -> SchemaPayload:
     def clean_value(val: str) -> Optional[str]:
         if not val:
             return None
-        s = val.strip()
+        s = str(val).strip()
         if s.upper() in ("NULL", "NA", "N/A", "NAN", "-") or s == "":
             return None
         return s
@@ -270,7 +271,7 @@ def ingest_csv(raw: bytes, dataset_name: str, db_path: str) -> SchemaPayload:
     for orig, safe in zip(original_names, safe_names):
         vals = col_values[safe]
         sql_type = _infer_sql_type(vals)
-        non_empty = [v for v in vals if v.strip()]
+        non_empty = [v for v in vals if v is not None and str(v).strip()]
         nunique = len(set(non_empty))
         role = classify_column(sql_type, nunique, total, vals)
         samples = list(dict.fromkeys(v for v in non_empty if v))[:3]
