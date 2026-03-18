@@ -459,23 +459,28 @@ def _summarise_rows(rows: List[Dict], max_rows: int = 15) -> str:
 
 
 
-def _prompt_insight(user_prompt: str, charts_summary: str) -> str:
-    return f"""Write a 2-3 sentence business insight based on these query results.
-
-ORIGINAL QUESTION: {user_prompt}
-
-RESULTS:
-{charts_summary}
-
-Rules:
-- Cite specific numbers from the results
-- Be honest — if results are weak or inconclusive, say so
-- No vague phrases like "shows interesting patterns"
-- Write as a business analyst, not a data scientist
-
-Respond with ONLY this JSON:
-{{"insight": "your 2-3 sentence insight here"}}
-"""
+def _prompt_insight(user_prompt: str, charts_summary: str, schema_columns: List[str] = None) -> str:
+    cols_ctx = f"\nRelevant columns: {', '.join(schema_columns[:15])}" if schema_columns else ""
+    return f"""Analyze the business results shown below.
+    
+    ORIGINAL QUESTION: {user_prompt}
+    {cols_ctx}
+    
+    RESULTS:
+    {charts_summary}
+    
+    Please provide:
+    1. A bulleted 'insight' (3-5 stars *). 
+    2. A list of 'brief_insights' (3-5 concise, ONE-LINE business observations).
+    3. Exactly 3 'suggestions' (short follow-up questions the user might ask next, specific to this data).
+    
+    Respond with ONLY this JSON:
+    {{
+      "insight": "bulleted list here",
+      "brief_insights": ["one-liner 1", "one-liner 2"],
+      "suggestions": ["Q1", "Q2", "Q3"]
+    }}
+    """
 
 
 # ── Two-stage pipeline core ────────────────────────────────────────────────────
@@ -663,12 +668,22 @@ def _run_two_stage(
 
     # ── Insight generation with real data ──────────────────────────
     insight = ""
+    brief_insights = stage1.get("brief_insights", [])
+    suggestions = stage1.get("suggestions", [])
+    
     if results_for_insight and chart_responses:
         try:
-            insight_resp = call_llm(_prompt_insight(prompt, "\n\n".join(results_for_insight)))
+            # Pass schema columns to help the LLM suggest relevant follow-ups
+            cols = [c.safe_name for c in schema.columns]
+            insight_resp = call_llm(_prompt_insight(prompt, "\n\n".join(results_for_insight), cols))
+            
             insight = insight_resp.get("insight", "")
+            if insight_resp.get("brief_insights"):
+                brief_insights = insight_resp.get("brief_insights")
+            if insight_resp.get("suggestions"):
+                suggestions = insight_resp.get("suggestions")
         except Exception:
-            insight = ""
+            pass
 
     return {
         "cannot_answer":  False,
@@ -676,6 +691,8 @@ def _run_two_stage(
         "charts":         chart_responses,
         "kpis":           kpi_responses,
         "insight":        insight,
+        "brief_insights": brief_insights,
+        "suggestions":    suggestions,
         "provider":       stage1.get("provider_used", "groq"),
         "_chart_records": chart_records,  # internal — stripped before API response
     }
@@ -746,10 +763,8 @@ def run_query(prompt: str, session_id: str) -> Dict:
 
     ctx    = build_schema_context(schema, query=prompt)
     result = _run_two_stage(prompt, schema, session.db_path, ctx, last_contexts=session.last_contexts)
-
     chart_records = result.pop("_chart_records", [])
-    suggestions   = generate_suggestions(prompt, result.get("charts", []), schema)
-    result["suggestions"] = suggestions
+
 
     if not result.get("cannot_answer"):
         session.last_charts = chart_records
@@ -827,7 +842,7 @@ def run_refine(message: str, session_id: str, original_prompt: str) -> Dict:
     return result
 
 
-def run_chat(message: str, history: List[Dict], session_id: str) -> Dict:
+def run_chat(message: str, history: List[Dict], session_id: str, context: Optional[Dict] = None) -> Dict:
     session = get_session(session_id)
     if not session:
         return {"error": "Session not found or expired. Please reload the dataset."}
@@ -842,26 +857,38 @@ def run_chat(message: str, history: List[Dict], session_id: str) -> Dict:
             for msg in history[-6:]  # Keep last 6 messages for context
         )
 
-    prompt = f"""You are a helpful AI data assistant for the InsightFlow dashboard.
-You help users understand their dataset and answer data-related questions conversationally.
+    # Prepare Dashboard Context for the Analyst
+    dashboard_ctx = ""
+    if context:
+        charts = [c.get("title", "Untitled") for c in context.get("charts", [])]
+        insight = context.get("insight", "No overview yet.")
+        dashboard_ctx = f"""
+CURRENT DASHBOARD STATE:
+- ACTIVE INSIGHTS: {insight}
+- VISIBLE CHARTS: {", ".join(charts) if charts else "None"}
+"""
+
+    prompt = f"""You are a resident Data Analyst for the InsightFlow dashboard.
+You help users understand their dataset and explain the insights visible on their screen.
 
 SCHEMA CONTEXT:
 {ctx}
+{dashboard_ctx}
 
 {history_text}
 
 USER MESSAGE: {message}
 
 Rules:
-- Give a detailed, helpful, and highly structured answer to the user's message.
-- Use **Markdown** formatting extensively to make your response look great! Use bold text for emphasis, bullet points or numbered lists, and code blocks for examples or prompts.
-- If they ask about the data schema or what columns exist, list the relevant columns from the schema context above clearly with bullet points.
-- If they ask for specific calculations or data points (e.g., "what is the average age?"), you MUST inform them that in this chat window you can only discuss the schema and help them write prompts. Tell them to use the main search bar on the dashboard to generate charts and query the actual data.
-- Keep your response friendly and highly readable.
-- Format your response with basic markdown if needed (e.g., bullets or bold text).
+- Give a detailed, helpful, and highly structured answer.
+- ADOPT THE ANALYST PERSONA: Use the provided "CURRENT DASHBOARD STATE" to explain what is happening in the charts.
+- If the user asks "Why is there a spike?" or "What does this mean?", use the results in the ACTIVE INSIGHTS to explain it.
+- Use **Markdown** formatting extensively (bold, bullets, tables).
+- If you don't have enough data to answer a specific numeric question, help them write a prompt for the main search bar to get that data.
+- Keep your response professional yet conversational.
 
 Respond with ONLY this JSON:
-{{"response": "your conversational response here"}}
+{{"response": "your analytical response here"}}
 """
     try:
         result = call_llm(prompt)
@@ -888,6 +915,7 @@ def build_refine_prompt(schema_context: str, original_prompt: str,
 def run_auto_report(session_id: str) -> Dict:
     """
     Generate a comprehensive multi-chart business report autonomously.
+    Calculates variety of charts (Trend, Distribution, Categorical, Top-K) + KPIs + Insights.
     """
     session = get_session(session_id)
     if not session:
@@ -898,20 +926,28 @@ def run_auto_report(session_id: str) -> Dict:
 
     # We want a comprehensive business report.
     # We'll ask the LLM to generate exactly 4 charts covering different areas.
-    report_prompt = """Generate a Comprehensive Business Executive Report based on the provided dataset. 
-Your goal is to provide a complete overview of the business health.
+    report_prompt = f"""Generate a Comprehensive Business Executive Report for the dataset: {schema.dataset_name}.
+Your goal is to provide a complete professional overview of the core health of this data.
 You MUST generate exactly 4 diverse charts that cover:
-1. OVERALL TREND: A line chart showing a major metric (revenue, volume, or orders) over time (use date column).
-2. DISTRIBUTION: A bar or pie chart showing how a primary numeric metric is distributed across a categorical dimension (e.g. City Tier, Gender, Category).
-3. COMPARATIVE ANALYSIS: A bar or grouped bar chart comparing two segments or tracking a second metric.
-4. PERFORMANCE KPI: A summary of 3-4 key business indicators (total, averages, max).
+1. OVERALL TREND: A line chart showing the primary volume/value metric over time (use any DATE columns found in schema).
+2. SEGMENT DISTRIBUTION: A pie or bar chart showing a major numeric metric (e.g. Sales, Total) broken down by the most significant categorical dimension (e.g. City, Gender, Category).
+3. COMPARATIVE ANALYSIS: A bar chart comparing 2-3 segments or categories across a metric.
+4. TOP PERFORMERS: A horizontal bar chart showing the "Top 5" items by a success metric.
 
-Ensure the "insight" field provides a professional, multi-paragraph business summary of the findings.
-Include forecasting in the line chart if at least 3 data points exist.
+ALSO return:
+- Exactly 4 business KPIs (Total, Average, Max, Min of primary numeric columns).
+- A new field "brief_insights": A list of 3-5 concise, ONE-LINE business observations based ONLY on these specific results.
+- An "insight" field that is structured as a bulleted list using markdown stars (*).
+  - Each bullet should be a professional business takeaway.
+  - Include 3-5 bullets.
+  - Identify trends, high-performers, and at least one anomaly/outlier if possible.
+- A list of "suggestions": 3-4 data-driven follow-up questions focused on these results (e.g. "Why did X drop in region Y?").
 """
 
     result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
     
-    # We don't save these as "last_charts" to avoid overwriting the user's current dashboard
+    # We mark this as an auto-report internally
+    if isinstance(result, dict):
+        result["is_auto_report"] = True
     
     return result

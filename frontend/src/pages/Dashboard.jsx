@@ -8,6 +8,7 @@ import DataTable from '../components/DataTable'
 import {
   KpiCard, InsightCard, CannotAnswer, ClarificationCard, SqlToggle, ChartSkeleton,
 } from '../components/SharedComponents'
+import { getSessionId } from '../utils/session'
 import ChatBot from '../components/ChatBot'
 import FullReportWidget from '../components/FullReportWidget'
 
@@ -165,19 +166,15 @@ export default function Dashboard({ health }) {
   
   // Dashboard view toggle: 'analytics' | 'data'
   const [viewMode, setViewMode] = useState('analytics')
-  const [sidebarTab, setSidebarTab] = useState('schema') // schema, chat, history
-  const [historyItems, setHistoryItems] = useState([])
+  const [isSchemaOpen, setIsSchemaOpen] = useState(true)
   
   const [showFullReport, setShowFullReport] = useState(false)
+  const [highlightedChartId, setHighlightedChartId] = useState(null)
+  const [isInsightsOpen, setIsInsightsOpen] = useState(true)
 
   const initialQueryFired = useRef(false)
 
-  // Fetch history when tab changes
-  useEffect(() => {
-    if (sidebarTab === 'history') {
-      getHistory().then(res => setHistoryItems(res.items || [])).catch(() => {})
-    }
-  }, [sidebarTab])
+
 
   // ── Load schema (passive — no auto-ingest) ───────────────────────────────────
   // We no longer auto-load the dataset on Dashboard mount. The user must
@@ -193,15 +190,30 @@ export default function Dashboard({ health }) {
         const s = await getSchema()
         if (cancelled) return
         setSchema(s)
-        // Fetch overview only if schema loaded and not already cached
-        if (!ssGet(SS_OVERVIEW)) {
-          setOverviewLoading(true)
+        
+        // AUTO-REPORT: If no previous result exists, generate one automatically
+        if (!ssGet(SS_KEY) && !cancelled) {
+          setLoading(true)
           try {
-            const ov = await getOverview()
-            if (!cancelled) { setOverview(ov); ssSet(SS_OVERVIEW, ov) }
-          } catch { /* non-critical */ }
-          finally { if (!cancelled) setOverviewLoading(false) }
+            const res = await fetch('/api/auto-report', {
+              method: 'POST',
+              headers: { 'X-Session-ID': getSessionId() }
+            })
+            if (res.ok) {
+              const autoReport = await res.json()
+              if (!cancelled) {
+                setResult(autoReport)
+                ssSet(SS_KEY, autoReport)
+                const firstPrompt = "Auto-Generated Insights"
+                setLastPrompt(firstPrompt)
+                ssSet(SS_PROMPT, firstPrompt)
+              }
+            }
+          } catch { /* fail silently */ }
+          finally { if (!cancelled) setLoading(false) }
         }
+
+        // Fetch overview only if schema loaded and not already cached
       } catch (err) {
         // 404 = no dataset loaded yet — this is expected, not an error
         if (!cancelled) {
@@ -228,8 +240,13 @@ export default function Dashboard({ health }) {
   }, [schema]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Query submission ──────────────────────────────────────────────────────────
-  async function submitQuery(q) {
-    const text = (typeof q === 'string' ? q : query).trim()
+  // Auto-expand insights on new result
+  useEffect(() => {
+    if (result?.brief_insights?.length > 0) setIsInsightsOpen(true)
+  }, [result])
+
+  async function submitQuery(overridePrompt = null) {
+    const text = (typeof overridePrompt === 'string' ? overridePrompt : query).trim()
     if (!text) return
     setLoading(true)
     setResult(null)
@@ -292,13 +309,11 @@ export default function Dashboard({ health }) {
 
       {/* ══ SIDEBAR ══════════════════════════════════════════════════════════════ */}
       <aside className="sidebar">
-        {schema && (
-          <div className="sidebar-tabs">
-            <button className={`sidebar-tab ${sidebarTab === 'schema' ? 'active' : ''}`} onClick={() => setSidebarTab('schema')}>Schema</button>
-            <button className={`sidebar-tab ${sidebarTab === 'chat' ? 'active' : ''}`} onClick={() => setSidebarTab('chat')}>Chat</button>
-            <button className={`sidebar-tab ${sidebarTab === 'history' ? 'active' : ''}`} onClick={() => setSidebarTab('history')}>History</button>
-          </div>
-        )}
+        <div className="sidebar-header" onClick={() => setIsSchemaOpen(!isSchemaOpen)} 
+          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}>
+          <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Data Dictionary</h3>
+          <span style={{ fontSize: '0.7rem', opacity: 0.5, transform: isSchemaOpen ? 'none' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>▼</span>
+        </div>
 
         <div className="sidebar-content-area">
           {!schema ? (
@@ -321,12 +336,11 @@ export default function Dashboard({ health }) {
                 </div>
               )}
             </div>
-          ) : sidebarTab === 'schema' ? (
+          ) : isSchemaOpen ? (
             <>
-              <div className="sidebar-header">
-                <h3>Dataset</h3>
-                <div className="dataset-name">{schema.dataset_name}</div>
-                <div className="dataset-meta">
+              <div className="sidebar-meta-area" style={{ padding: '0 16px 16px' }}>
+                <div className="dataset-name" style={{ fontWeight: 600, marginBottom: 4 }}>{schema.dataset_name}</div>
+                <div className="dataset-meta" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span className="meta-pill">{schema.row_count.toLocaleString()} rows</span>
                   <span className="meta-pill">{schema.columns.length} cols</span>
                   {!schema.has_date_column && (
@@ -367,31 +381,11 @@ export default function Dashboard({ health }) {
                 </div>
               </div>
             </>
-          ) : sidebarTab === 'chat' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-              <ChatBot inline={true} />
+          ) : (
+            <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              Schema hidden. Click header to expand.
             </div>
-          ) : sidebarTab === 'history' ? (
-            <div style={{ padding: 16 }}>
-              <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Past Queries</h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>Click to replay a query.</p>
-              {historyItems.length === 0 ? (
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No queries yet.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {historyItems.map((hi, i) => (
-                    <button key={i} onClick={() => { setQuery(hi.prompt); submitQuery(hi.prompt) }}
-                      style={{ textAlign: 'left', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-primary)', lineHeight: 1.4, transition: 'all 0.15s' }}
-                      onMouseOver={e => e.currentTarget.style.borderColor = 'var(--primary-muted)'}
-                      onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                    >
-                      {hi.prompt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
+          )}
         </div>
       </aside>
 
@@ -460,42 +454,33 @@ export default function Dashboard({ health }) {
         ) : (
           <div className="analytics-view">
             {/* AI Overview */}
-        <OverviewCard overview={overview} loading={overviewLoading} />
+            <OverviewCard overview={overview} loading={overviewLoading} />
+
+            {/* AI Brief Insights Dropdown (Top Row) */}
+            {result?.brief_insights?.length > 0 && (
+              <div className="brief-insights-dropdown card">
+                <div className="dropdown-header" onClick={() => setIsInsightsOpen(!isInsightsOpen)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '1rem' }}>💡</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>AI Brief Insights</span>
+                    <span className="badge badge-blue" style={{ fontSize: '0.7rem' }}>{result.brief_insights.length} Notes</span>
+                  </div>
+                  <span className={`dropdown-arrow ${isInsightsOpen ? 'open' : ''}`}>▼</span>
+                </div>
+                {isInsightsOpen && (
+                  <div className="dropdown-content fade-in">
+                    <ul className="brief-insight-list">
+                      {result.brief_insights.map((bi, i) => (
+                        <li key={i}>{bi}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
         {/* Query input */}
-        <div className="query-area">
-          <div className="query-area-title">Ask a question about your data</div>
-          <div className="query-input-row">
-            <textarea
-              className="query-input"
-              placeholder={
-                !schema ? 'Load a dataset first via the Upload page'
-                : 'e.g. "Compare average spending by city tier and gender"'
-              }
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={!schema || loading}
-              rows={1}
-            />
-            <button className="btn btn-primary"
-              onClick={() => submitQuery()}
-              disabled={!schema || loading || !query.trim()}>
-              {loading ? '⏳' : '→'} Analyse
-            </button>
-          </div>
-          <div className="chip-row">
-            {DEMO_CHIPS.map(chip => (
-              <button key={chip}
-                className={`chip ${loading ? 'chip-loading' : ''}`}
-                onClick={() => { setQuery(chip); submitQuery(chip) }}
-                disabled={!schema || loading}
-                title={chip}>
-                {chip.length > 54 ? chip.slice(0, 54) + '…' : chip}
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {/* Results */}
         <div className="results-area">
@@ -543,7 +528,7 @@ export default function Dashboard({ health }) {
               {result.charts?.length > 0 && (
                 <div className="chart-grid">
                   {result.charts.map((chart, i) => (
-                    <div className="chart-card" key={i}>
+                <div className={`chart-card ${highlightedChartId === i ? 'highlighted' : ''}`} key={i} id={`chart-card-${i}`}>
                       <div className="chart-card-header">
                         <div className="chart-title">{chart.title}</div>
                         <div className="chart-meta">
@@ -604,41 +589,9 @@ export default function Dashboard({ health }) {
                 <InsightCard text={result.insight} />
               )}
 
-              {result.suggestions?.length > 0 && !result.cannot_answer && (
-                <div className="suggestions-bar">
-                  <div className="suggestions-label">Ask next:</div>
-                  <div className="suggestions-chips">
-                    {result.suggestions.map((s, i) => (
-                      <button
-                        key={i}
-                        className="suggestion-chip"
-                        onClick={() => { setQuery(s); submitQuery(s) }}
-                        disabled={loading}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {!result.cannot_answer && result.charts?.length > 0 && (
-                <div className="refine-bar">
-                  <label>Follow-up</label>
-                  <input type="text"
-                    placeholder='e.g. "Now filter to Tier 1 cities only"'
-                    value={refineInput}
-                    onChange={e => setRefineInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') submitRefine() }}
-                    disabled={refining}
-                  />
-                  <button className="btn btn-secondary btn-sm"
-                    onClick={submitRefine}
-                    disabled={refining || !refineInput.trim()}>
-                    {refining ? '⏳' : 'Apply'}
-                  </button>
-                </div>
-              )}
+
+
 
               {!result.cannot_answer && result.charts?.length > 0 && (
                 <div className="action-bar">
@@ -658,33 +611,56 @@ export default function Dashboard({ health }) {
                   <ExportButton targetId="results-area" prompt={lastPrompt} result={result} />
                 </div>
               )}
+
             </div>
           )}
 
-          {!loading && !result && !queryError && (
+          {schema && (
+            <div className="query-area-bottom">
+              <div className="query-input-row">
+                <textarea
+                  className="query-input"
+                  placeholder="Ask a deeper analytical question or prompt the AI..."
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading}
+                  rows={1}
+                />
+                <button className="btn btn-primary"
+                  onClick={() => submitQuery()}
+                  disabled={loading || !query.trim()}>
+                  {loading ? '⏳' : '→'} Analyse
+                </button>
+              </div>
+
+              <div className="suggestion-section">
+                <div className="chip-row">
+                  {(result?.suggestions || DEMO_CHIPS).map(chip => (
+                    <button key={chip}
+                      className={`chip ${loading ? 'chip-loading' : ''} ${result?.suggestions ? 'suggestion-chip-active' : ''}`}
+                      onClick={() => { setQuery(chip); submitQuery(chip) }}
+                      disabled={loading}
+                      title={chip}>
+                      {chip.length > 54 ? chip.slice(0, 54) + '…' : chip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!loading && !result && !queryError && !schema && (
             <div className="empty-state">
               <div className="empty-state-icon">📊</div>
-              {!schema ? (
-                <>
-                  <h3>No dataset loaded</h3>
-                  <p>Load a dataset first to start asking questions.</p>
-                  <a href="/upload"
-                    onClick={e => { e.preventDefault(); window.location.href = '/upload' }}
-                    className="btn btn-primary"
-                    style={{ display: 'inline-block', marginTop: 12 }}>
-                    Go to Upload →
-                  </a>
-                </>
-              ) : (
-                <>
-                  <h3>Ready for your first question</h3>
-                  <p>
-                    Type a business question above or click a suggestion chip.
-                    InsightFlow will generate SQL, validate chart types, and render
-                    an interactive dashboard — showing you every step of the process.
-                  </p>
-                </>
-              )}
+              <h3>No dataset loaded</h3>
+              <p>Load a dataset first to start asking questions.</p>
+              <a href="/upload"
+                onClick={e => { e.preventDefault(); window.location.href = '/upload' }}
+                className="btn btn-primary"
+                style={{ display: 'inline-block', marginTop: 12 }}>
+                Go to Upload →
+              </a>
             </div>
           )}
           </div>
@@ -693,7 +669,7 @@ export default function Dashboard({ health }) {
         </div>
 
       {showDiag && <DiagnosticModal health={health} onClose={() => setShowDiag(false)} />}
-      {!schema || sidebarTab !== 'chat' ? <ChatBot /> : null}
+      {schema && <ChatBot context={result} />}
       {showFullReport && <FullReportWidget onComplete={() => setShowFullReport(false)} />}
     </div>
   )

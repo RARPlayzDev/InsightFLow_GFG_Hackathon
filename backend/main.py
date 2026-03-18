@@ -76,6 +76,18 @@ class RefineRequest:
 class ChatRequest:
     message: str = ""
     history: list = None
+    context: dict = None
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    print(f"GLOBAL ERROR: {exc}", file=sys.stderr)
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"error": "An internal server error occurred.", "detail": str(exc)},
+    )
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
@@ -373,14 +385,14 @@ def chat(request: Request, req: ChatRequest, x_session_id: Optional[str] = Heade
     if sess:
         sess.chat_history.append({"role": "user", "content": sanitized_msg})
         # Pass all history except the current message just appended
-        result = run_chat(sanitized_msg, sess.chat_history[:-1], sid)
+        result = run_chat(sanitized_msg, sess.chat_history[:-1], sid, req.context)
         if "error" not in result:
             sess.chat_history.append({"role": "assistant", "content": result.get("response", "")})
             set_session(sid, sess)
         else:
             sess.chat_history.pop()
     else:
-        result = run_chat(sanitized_msg, req.history or [], sid)
+        result = run_chat(sanitized_msg, req.history or [], sid, req.context)
 
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])

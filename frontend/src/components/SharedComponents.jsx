@@ -20,6 +20,31 @@ export function InsightCard({ text }) {
 
   // Backwards compatibility with plain text
   if (typeof text === 'string') {
+    // If it's a markdown-style list (starts with *), parse it
+    if (text.trim().startsWith('*')) {
+      const bullets = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('*')).map(l => l.replace(/^\*\s*/, ''))
+      return (
+        <div className="insight-card structured">
+          <div className="insight-icon">✦</div>
+          <div className="insight-content">
+            <div className="insight-label">AI Executive Summary</div>
+            <ul className="insight-bullets">
+              {bullets.map((b, i) => {
+                const isPositive = /\b(increase|growth|up|higher|improvement|top|performers)\b/i.test(b)
+                const isNegative = /\b(decrease|drop|down|lower|loss|decline|anomaly|outlier|spike)\b/i.test(b)
+                const icon = isPositive ? '📈' : isNegative ? '📉' : '●'
+                return (
+                  <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.8rem' }}>{icon}</span>
+                    <span>{b}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="insight-card">
         <div className="insight-icon">✦</div>
@@ -44,7 +69,17 @@ export function InsightCard({ text }) {
         {headline && <div className="insight-headline">{headline}</div>}
         {bullets.length > 0 && (
           <ul className="insight-bullets">
-            {bullets.map((b, i) => <li key={i}>{b}</li>)}
+            {bullets.map((b, i) => {
+               const isPositive = /\b(increase|growth|up|higher|improvement|top|performers)\b/i.test(b)
+               const isNegative = /\b(decrease|drop|down|lower|loss|decline|anomaly|outlier|spike)\b/i.test(b)
+               const icon = isPositive ? '📈' : isNegative ? '📉' : '●'
+               return (
+                 <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+                   <span style={{ fontSize: '0.8rem' }}>{icon}</span>
+                   <span>{b}</span>
+                 </li>
+               )
+            })}
           </ul>
         )}
         {recommendation && (

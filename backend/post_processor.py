@@ -1,18 +1,17 @@
 """
 post_processor.py
 ─────────────────────────────────────────────────────────
-8-rule chart correction pipeline that runs AFTER SQL execution.
-Rules are applied in order — later rules see updates from earlier ones.
-
-Rule order matters:
+9-rule chart correction pipeline that runs AFTER SQL execution.
+Rules are applied in order:
   1. Empty result         → set warning, return early
-  2. Raw row dump guard   → block >200 rows without aggregation
-  3. Truncate large       → cap bar/line/area at 20 rows
-  4. Pie tail merge       → merge tail slices into "Other" (5 < n ≤ 12)
-  5. Pie → bar            → convert if >8 categories OR dominant slice >60%
-  6. Grouped bar pivot    → long → wide form for Recharts
+  2. Grouped bar pivot    → long → wide form for Recharts
+  3. Raw row dump guard   → block >200 rows without aggregation
+  4. Truncate large       → cap bar/line/area at 20 rows
+  5. Pie tail merge       → merge tail slices into "Other" (5 < n ≤ 12)
+  6. Pie → bar            → convert if >8 categories OR dominant slice >60%
   7. Scatter correlation  → compute Pearson r, add note
-  8. Ambiguous flag       → append ⚠ note for flagged columns
+  8. Line Forecasting     → 3-step linear regression projection
+  9. Ambiguous flag       → append ⚠ note for flagged columns
 """
 from __future__ import annotations
 import math

@@ -99,8 +99,17 @@ def set_session(session_id: str, data: SessionData) -> None:
     _sessions[session_id] = data
 
 
+import os
+
 def _evict_expired() -> None:
     now = time.time()
     expired = [sid for sid, s in _sessions.items() if now - s.last_active > SESSION_TTL]
     for sid in expired:
+        sess = _sessions[sid]
+        # Clean up the SQLite database file from disk
+        try:
+            if sess.db_path and os.path.exists(sess.db_path):
+                os.remove(sess.db_path)
+        except Exception as e:
+            print(f"[Session] Failed to delete expired DB {sess.db_path}: {e}")
         del _sessions[sid]

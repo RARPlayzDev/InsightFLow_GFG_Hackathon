@@ -82,9 +82,9 @@ export async function getOverview() {
   return apiFetch('/overview', { method: 'POST' })
 }
 
-export async function sendChatMessage(message, history) {
+export async function sendChatMessage(message, history, context = null) {
   return apiFetch('/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, context }),
   })
 }

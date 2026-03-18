@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { sendChatMessage } from '../utils/api'
 
-export default function ChatBot({ inline = false }) {
+export default function ChatBot({ inline = false, context = null }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -28,7 +28,7 @@ export default function ChatBot({ inline = false }) {
     setLoading(true)
 
     try {
-      const response = await sendChatMessage(userMsg, messages)
+      const response = await sendChatMessage(userMsg, messages, context)
       setMessages([...newMessages, { role: 'assistant', content: response.response }])
     } catch (err) {
       setMessages([...newMessages, { role: 'assistant', content: `Error: ${err.message}` }])
