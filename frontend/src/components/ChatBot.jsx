@@ -4,6 +4,7 @@ import { sendChatMessage } from '../utils/api'
 
 export default function ChatBot({ inline = false, context = null }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +18,12 @@ export default function ChatBot({ inline = false, context = null }) {
     scrollToBottom()
   }, [messages])
 
-  const toggleChat = () => setIsOpen(!isOpen)
+  const toggleChat = () => {
+    setIsOpen(!isOpen)
+    if (isOpen) setIsExpanded(false)
+  }
+  
+  const toggleExpand = () => setIsExpanded(!isExpanded)
 
   const handleSend = async () => {
     if (!input.trim()) return
@@ -47,36 +53,73 @@ export default function ChatBot({ inline = false, context = null }) {
   const showChat = inline || isOpen
 
   return (
-    <div className={inline ? 'chatbot-inline' : `chatbot-wrapper ${isOpen ? 'open' : ''}`} style={inline ? { display: 'flex', flexDirection: 'column', height: '100%', width: '100%' } : {}}>
+    <div className={
+        inline ? 'chatbot-inline' : 
+        `chatbot-wrapper ${isOpen ? 'open' : ''} ${isExpanded ? 'expanded' : ''}`
+      } 
+      style={inline ? { display: 'flex', flexDirection: 'column', height: '100%', width: '100%' } : {}}
+    >
       {!inline && !isOpen && (
         <button className="chatbot-toggle-btn" onClick={toggleChat} title="Need help? Ask the Data Assistant">
           💬 Chat
         </button>
       )}
       {showChat && (
-        <div className={inline ? 'chatbot-window inline' : 'chatbot-window'} style={inline ? { position: 'static', width: '100%', height: '100%', boxShadow: 'none', borderRadius: 0, border: 'none', display: 'flex', flexDirection: 'column' } : {}}>
+        <div className={
+            inline ? 'chatbot-window inline' : 
+            `chatbot-window ${isExpanded ? 'expanded' : ''}`
+          } 
+          style={inline ? { position: 'static', width: '100%', height: '100%', boxShadow: 'none', borderRadius: 0, border: 'none', display: 'flex', flexDirection: 'column' } : {}}
+        >
           <div className="chatbot-header" style={inline ? { borderRadius: 0 } : {}}>
-            <h4>Data Assistant</h4>
-            {!inline && <button className="chatbot-close-btn" onClick={toggleChat}>✕</button>}
+            <div className="chatbot-header-info">
+               <span className="chatbot-header-dot" />
+               <h4>Data Assistant</h4>
+            </div>
+            <div className="chatbot-header-actions">
+              {!inline && (
+                <button 
+                  className="chatbot-action-btn" 
+                  onClick={toggleExpand} 
+                  title={isExpanded ? "Shrink" : "Expand"}
+                >
+                  {isExpanded ? '❐' : '⬜'}
+                </button>
+              )}
+              {!inline && <button className="chatbot-close-btn" onClick={toggleChat} title="Close">✕</button>}
+            </div>
           </div>
           <div className="chatbot-messages">
             {messages.length === 0 && (
               <div className="chatbot-empty">
-                Ask me about your dataset schema or how to formulate your questions!
+                <div style={{ fontSize: '2rem', marginBottom: '1rem', opacity: 0.5 }}>🤖</div>
+                <h5>Welcome to InsightFlow Analyst!</h5>
+                <p>Ask me about your dataset schema or how to formulate your questions!</p>
               </div>
             )}
             {messages.map((msg, idx) => (
               <div key={idx} className={`chatbot-message ${msg.role}`}>
                 {msg.role === 'assistant' ? (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <div className="assistant-content">
+                    <ReactMarkdown>
+                      {typeof msg.content === 'string' 
+                        ? msg.content 
+                        : (msg.content ? JSON.stringify(msg.content, null, 2) : 'No response content')}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
-                  msg.content
+                  typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
                 )}
               </div>
             ))}
             {loading && (
               <div className="chatbot-message assistant">
-                <span className="chatbot-typing">Thinking...</span>
+                <div className="chatbot-typing-container">
+                  <span className="dot" />
+                  <span className="dot" />
+                  <span className="dot" />
+                  <span className="chatbot-typing-text">Analysing...</span>
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} />

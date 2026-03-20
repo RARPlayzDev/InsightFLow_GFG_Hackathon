@@ -1,0 +1,405 @@
+
+[Thu Mar 19 14:27:00 2026] EXCEPTION at /auto-report
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 380, in auto_report
+    result = run_auto_report(sid)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 959, in run_auto_report
+    result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 511, in _run_two_stage
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\llm_providers.py", line 126, in call_llm_ladder
+    print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\G KAARTHIKEYAN\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+
+
+[Thu Mar 19 14:29:07 2026] EXCEPTION at /auto-report
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 380, in auto_report
+    result = run_auto_report(sid)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 959, in run_auto_report
+    result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 511, in _run_two_stage
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\llm_providers.py", line 126, in call_llm_ladder
+    print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\G KAARTHIKEYAN\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+
+
+[Thu Mar 19 14:30:42 2026] EXCEPTION at /auto-report
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 380, in auto_report
+    result = run_auto_report(sid)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 959, in run_auto_report
+    result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 511, in _run_two_stage
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\llm_providers.py", line 126, in call_llm_ladder
+    print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\G KAARTHIKEYAN\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+
+
+[Thu Mar 19 14:33:48 2026] EXCEPTION at /auto-report
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 380, in auto_report
+    result = run_auto_report(sid)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 959, in run_auto_report
+    result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 511, in _run_two_stage
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\llm_providers.py", line 126, in call_llm_ladder
+    print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\G KAARTHIKEYAN\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+
+
+[Thu Mar 19 14:35:07 2026] EXCEPTION at /auto-report
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 382, in auto_report
+    result = run_auto_report(sid)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 959, in run_auto_report
+    result = _run_two_stage(report_prompt, schema, session.db_path, ctx)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\query_pipeline.py", line 511, in _run_two_stage
+    stage1 = call_llm(_prompt_stage1(schema_context, prompt, schema.table_name, last_contexts=last_contexts))
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\llm_providers.py", line 126, in call_llm_ladder
+    print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\G KAARTHIKEYAN\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 6: character maps to <undefined>
+
+
+[Thu Mar 19 17:36:07 2026] EXCEPTION at /query
+NameError: name 'json' is not defined
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 392, in query
+    json_data = json.dumps(result, default=str)
+                ^^^^
+NameError: name 'json' is not defined. Did you forget to import 'json'?
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\fastapi\routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\starlette\concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2502, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\venv\Lib\site-packages\slowapi\extension.py", line 766, in sync_wrapper
+    response = func(*args, **kwargs)
+  File "D:\Kaarthi\Dev Space\InsightFlow-Gfg_Hackathon-main\backend\main.py", line 395, in query
+    err_payload = json.dumps({"error": f"Serialization failed: {e}"}).encode("ascii", "ignore")
+                  ^^^^
+NameError: name 'json' is not defined. Did you forget to import 'json'?
+

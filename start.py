@@ -153,7 +153,7 @@ def build_npm():
         subprocess.run(["npm", "install", "--silent"], cwd=str(FRONTEND), shell=use_shell, check=True)
 
 def run_backend():
-    subprocess.run([str(UVICORN), "main:app", "--reload", "--port", "8000"], cwd=str(BACKEND), check=True)
+    subprocess.run([str(UVICORN), "main:app", "--reload", "--port", "8001"], cwd=str(BACKEND), check=True)
 
 def run_frontend():
     use_shell = sys.platform == "win32"

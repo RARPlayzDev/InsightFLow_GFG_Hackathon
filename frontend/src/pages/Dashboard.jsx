@@ -201,20 +201,25 @@ export default function Dashboard({ health }) {
             })
             if (res.ok) {
               const autoReport = await res.json()
-              if (!cancelled) {
-                setResult(autoReport)
-                ssSet(SS_KEY, autoReport)
-                const firstPrompt = "Auto-Generated Insights"
-                setLastPrompt(firstPrompt)
-                ssSet(SS_PROMPT, firstPrompt)
-              }
-            }
-          } catch { /* fail silently */ }
-          finally { if (!cancelled) setLoading(false) }
-        }
+                if (!cancelled) {
+                  setResult(autoReport)
+                  ssSet(SS_KEY, autoReport)
+                  
+                  // Extract overview from the auto-report result (1-call optimization)
+                  if (autoReport.dataset_overview) {
+                    setOverview(autoReport.dataset_overview)
+                    ssSet(SS_OVERVIEW, autoReport.dataset_overview)
+                  }
 
-        // Fetch overview only if schema loaded and not already cached
-      } catch (err) {
+                  const firstPrompt = "Auto-Generated Insights"
+                  setLastPrompt(firstPrompt)
+                  ssSet(SS_PROMPT, firstPrompt)
+                }
+              }
+            } catch { /* fail silently */ }
+            finally { if (!cancelled) setLoading(false) }
+          }
+        } catch (err) {
         // 404 = no dataset loaded yet — this is expected, not an error
         if (!cancelled) {
           if (err.message?.includes('404') || err.message?.includes('Session not found')) {

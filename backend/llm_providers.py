@@ -2,7 +2,8 @@
 llm_providers.py
 ─────────────────────────────────────────────────────────
 Multi-provider LLM ladder with automatic failover.
-Providers tried in order: Groq keys → Gemini keys.
+Providers tried in order: Groq keys -> Gemini keys.
+Raw response preview: {raw[:150]!r}
 Both use OpenAI-compatible chat completions format.
 """
 
@@ -13,6 +14,7 @@ import copy
 import hashlib
 import sys
 import traceback
+print("LLM_PROVIDERS VERSION: 15.2 (ASCII-SAFE)")
 from typing import Dict, List, Optional
 import httpx
 
@@ -33,7 +35,29 @@ PROVIDERS = [
     },
 ]
 
-_RESPONSE_CACHE: Dict[str, tuple[Dict, float]] = {}
+_CACHE_FILE = os.path.join(os.path.dirname(__file__), "llm_cache.json")
+_RESPONSE_CACHE: Dict[str, List] = {} # {key: [result_dict, timestamp]}
+
+def _load_cache():
+    global _RESPONSE_CACHE
+    if os.path.exists(_CACHE_FILE):
+        try:
+            with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+                _RESPONSE_CACHE = json.load(f)
+        except Exception:
+            _RESPONSE_CACHE = {}
+
+def _save_cache():
+    try:
+        with open(_CACHE_FILE, "w", encoding="utf-8") as f:
+            # Keep only last 24 hours
+            now = time.time()
+            fresh = {k: v for k, v in _RESPONSE_CACHE.items() if (now - v[1]) < 86400}
+            json.dump(fresh, f)
+    except Exception:
+        pass
+
+_load_cache()
 
 def _clean_env(key: str, default: str = "") -> str:
     v = os.getenv(key, default).strip()
@@ -83,11 +107,11 @@ def call_llm_ladder(prompt: str) -> Dict:
     ck = _cache_key(prompt)
     now = time.time()
     
-    # 10-minute TTL cache
+    # 24-hour TTL cache
     if ck in _RESPONSE_CACHE:
         cached_res, timestamp = _RESPONSE_CACHE[ck]
-        if now - timestamp < 600:
-            print(f"[LLM] Cache hit ({ck})")
+        if now - timestamp < 86400:
+            print(f"[LLM] Cache Hit ({ck}) - using persistent result")
             return copy.deepcopy(cached_res)
         else:
             del _RESPONSE_CACHE[ck]
@@ -123,11 +147,12 @@ def call_llm_ladder(prompt: str) -> Dict:
         req_payload = copy.deepcopy(payload)
         req_payload["model"] = model
         
-        print(f"[LLM] → {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
+        print(f"[LLM] >> {p_name.capitalize()}/{model} (Key {idx+1}/{len(keys)})")
         
         try:
             r = httpx.post(key_data["base_url"], json=req_payload, headers=headers, timeout=45.0)
-            print(f"[LLM] ← HTTP {r.status_code}")
+            # ASCII-safe log
+            print(f"[LLM] << HTTP {r.status_code}")
             
             if r.status_code == 429:
                 print(f"[LLM] 429 Rate limited, rotating to next key...", file=sys.stderr)
@@ -148,7 +173,13 @@ def call_llm_ladder(prompt: str) -> Dict:
             result = _extract_json(raw)
             result["provider_used"] = p_name
             
+            # Continuous result preview for terminal (ASCII-safe for Windows)
+            preview = (raw[:150] + "...") if len(raw) > 150 else raw
+            safe_preview = "".join(c for c in preview if ord(c) < 128)
+            print(f"[LLM] SUCCESS - {p_name.upper()}\n[RESULT] {safe_preview}")
+            
             _RESPONSE_CACHE[ck] = (copy.deepcopy(result), now)
+            _save_cache()
             return copy.deepcopy(result)
             
         except httpx.ReadTimeout:

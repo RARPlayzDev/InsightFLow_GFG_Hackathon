@@ -31,10 +31,10 @@ function fmtLabel(col) {
     .trim()
 }
 
-function clip(str, n = 14) {
+function clip(str, n = 12) {
   if (str == null) return ''
   const s = String(str)
-  return s.length > n ? s.slice(0, n) + '…' : s
+  return s.length > n ? s.slice(0, n) + '...' : s
 }
 
 function firstKey(row, exclude) {
@@ -91,10 +91,13 @@ export default function DynamicChart({ type, rows, xCol, yCols }) {
           {fmtLabel(xCol)} — {fmtLabel(yKey)}
         </div>
         <ResponsiveContainer width="100%" height={H}>
-          <PieChart>
+          <PieChart margin={{ top: 0, bottom: 20 }}>
             <Pie data={data} dataKey="value" nameKey="name"
-              cx="50%" cy="50%" outerRadius={96} isAnimationActive={false}
-              label={({ name, percent }) => `${clip(name)} ${(percent * 100).toFixed(0)}%`}
+              cx="50%" cy="45%" outerRadius={85} isAnimationActive={false}
+              label={({ name, percent }) => {
+                if (percent < 0.05) return null // Hide labels for tiny slices
+                return `${clip(name, 10)} ${(percent * 100).toFixed(0)}%`
+              }}
               labelLine={{ stroke: '#dde2ed' }}
             >
               {data.map((_, i) => (
@@ -102,7 +105,13 @@ export default function DynamicChart({ type, rows, xCol, yCols }) {
               ))}
             </Pie>
             <Tooltip contentStyle={TIP} formatter={(val) => [val.toLocaleString(), fmtLabel(yKey)]} />
-            <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+            <Legend 
+              verticalAlign="bottom" 
+              align="center"
+              iconSize={8} 
+              wrapperStyle={{ fontSize: 10, paddingTop: 10 }}
+              formatter={(v) => clip(fmtLabel(v), 30)}
+            />
           </PieChart>
         </ResponsiveContainer>
       </>

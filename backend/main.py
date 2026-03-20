@@ -1,15 +1,18 @@
 
-
 # load_dotenv is called HERE, once, before any other local imports.
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 import os
+import sys
+import time
+import json
+print("BACKEND VERSION: 15.3 (STABILITY FIX)")
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile, Request
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
@@ -37,7 +40,7 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Rate limit exceeded. Please slow down and try again later."}
     )
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -59,7 +62,7 @@ SESSIONS_DIR.mkdir(exist_ok=True)
 GFG_CSV = Path(__file__).parent.parent / "data" / "Customer_Behaviour__Online_vs_Offline_.csv"
 
 
-# ── Request models ─────────────────────────────────────────────────────────────
+# ??? Request models ???
 
 @dataclass
 class QueryRequest:
@@ -82,15 +85,21 @@ class ChatRequest:
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
-    print(f"GLOBAL ERROR: {exc}", file=sys.stderr)
-    traceback.print_exc()
+    err_str = f"\n[{time.ctime()}] EXCEPTION at {request.url.path}\n{type(exc).__name__}: {exc}\n{traceback.format_exc()}\n"
+    print(err_str, file=sys.stderr)
+    try:
+        with open("backend_errors.log", "a", encoding="utf-8") as f:
+            f.write(err_str)
+    except:
+        pass
+
     return JSONResponse(
         status_code=500,
         content={"error": "An internal server error occurred.", "detail": str(exc)},
     )
 
 
-# ── Helper ─────────────────────────────────────────────────────────────────────
+# ??? Helper ???
 
 def _get_sid(x_session_id: Optional[str]) -> str:
     if not x_session_id or not x_session_id.strip():
@@ -103,10 +112,13 @@ def _clean_env(key: str, default: str = "") -> str:
     return os.getenv(key, default).strip().strip('"').strip("'").strip()
 
 
-# ── Routes ──────────────────────────────────────────────────────────────────────
+# ??? Routes ???
 
 @app.get("/health")
 def health():
+    # Continuous health check updates for terminal visibility
+    print(f"[HEALTH] {time.strftime('%H:%M:%S')} - System OK")
+    import llm_providers
     api_key  = _clean_env("GROQ_API_KEY")
     key_ok   = bool(api_key) and len(api_key) > 20
     return {
@@ -136,7 +148,6 @@ def health_summary():
 def debug_llm():
     """
     Fires a minimal test call to Groq and returns the raw response.
-    Open http://localhost:8000/debug-llm in your browser to diagnose issues.
     """
     import httpx as _httpx
 
@@ -170,52 +181,67 @@ def debug_llm():
 
 @app.post("/preload")
 @limiter.limit("5/minute")
-def preload(request: Request, x_session_id: Optional[str] = Header(None)):
-    sid = _get_sid(x_session_id)
-
-    # Return cached schema if session already loaded — avoids re-ingesting on every nav
-    existing = get_session(sid)
-    if existing and existing.schema:
-        s = existing.schema
-        return {
-            "ok": True, "cached": True,
-            "table_name": s.table_name, "dataset_name": s.dataset_name,
-            "row_count": s.row_count, "column_count": len(s.columns),
-            "has_date_column": s.has_date_column,
-        }
-
-    if not GFG_CSV.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="GFG dataset not found. Ensure data/Customer_Behaviour__Online_vs_Offline_.csv exists."
-        )
-
-    db_path = str(SESSIONS_DIR / f"{sid}.db")
-
-    # Delete stale DB files from previous server runs.
-    # Without this, WAL journal replay causes "table already exists" errors.
-    for suffix in ("", "-wal", "-shm"):
-        f = Path(db_path + suffix) if suffix else Path(db_path)
-        if f.exists():
-            try:
-                f.unlink()
-            except OSError:
-                pass
-
+async def preload(request: Request, x_session_id: Optional[str] = Header(None)):
+    print(f"[PRELOAD] Called with X-Session-ID: {x_session_id}", flush=True)
+    
     try:
-        raw    = GFG_CSV.read_bytes()
-        schema = ingest_csv(raw, GFG_CSV.name, db_path)
+        sid = _get_sid(x_session_id)
+        
+        # Return cached schema if session already loaded
+        existing = get_session(sid)
+        if existing and existing.schema:
+            print(f"[PRELOAD] Using cached schema for {sid}", flush=True)
+            s = existing.schema
+            return {
+                "ok": True, "cached": True,
+                "table_name": s.table_name, "dataset_name": s.dataset_name,
+                "row_count": s.row_count, "column_count": len(s.columns),
+                "has_date_column": s.has_date_column,
+            }
+
+        if not GFG_CSV.exists():
+            print(f"[PRELOAD] ERROR: CSV not found at {GFG_CSV}", flush=True)
+            raise HTTPException(
+                status_code=404,
+                detail="GFG dataset not found. Ensure data/Customer_Behaviour__Online_vs_Offline_.csv exists."
+            )
+
+        db_path = str(SESSIONS_DIR / f"{sid}.db")
+        print(f"[PRELOAD] Loading CSV into {db_path}", flush=True)
+
+        # Delete stale DB files
+        for suffix in ("", "-wal", "-shm"):
+            f = Path(db_path + suffix) if suffix else Path(db_path)
+            if f.exists():
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+
+        try:
+            raw    = GFG_CSV.read_bytes()
+            schema = ingest_csv(raw, GFG_CSV.name, db_path)
+            print(f"[PRELOAD] Ingested successfully: {schema.row_count} rows", flush=True)
+        except Exception as e:
+            import traceback
+            err_msg = f"\n[PRELOAD ERROR] {type(e).__name__}: {e}\n{traceback.format_exc()}\n"
+            print(err_msg, file=sys.stderr, flush=True)
+            raise HTTPException(status_code=500, detail=f"Dataset ingest failed: {e}")
+
+        set_session(sid, SessionData(schema=schema, db_path=db_path))
+        return {
+            "ok": True, "cached": False,
+            "table_name": schema.table_name, "dataset_name": schema.dataset_name,
+            "row_count": schema.row_count, "column_count": len(schema.columns),
+            "has_date_column": schema.has_date_column,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Dataset ingest failed: {e}")
-
-    set_session(sid, SessionData(schema=schema, db_path=db_path))
-
-    return {
-        "ok": True, "cached": False,
-        "table_name": schema.table_name, "dataset_name": schema.dataset_name,
-        "row_count": schema.row_count, "column_count": len(schema.columns),
-        "has_date_column": schema.has_date_column,
-    }
+        import traceback
+        err_msg = f"\n[PRELOAD UNEXPECTED ERROR] {type(e).__name__}: {e}\n{traceback.format_exc()}\n"
+        print(err_msg, file=sys.stderr, flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/upload-csv", response_model=None)
@@ -326,18 +352,30 @@ def data_preview(request: Request, x_session_id: Optional[str] = Header(None)):
 
 
 @app.post("/auto-report")
-@limiter.limit("2/minute")
 def auto_report(request: Request, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
     from query_pipeline import run_auto_report
+    import json
+    
     result = run_auto_report(sid)
+    if not isinstance(result, dict):
+        return {"error": "Invalid result from engine"}
+
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    
+    # Defensive ASCII encoding for Windows
+    try:
+        json_data = json.dumps(result, default=str)
+        return Response(content=json_data.encode("ascii", "ignore"), media_type="application/json")
+    except Exception as e:
+        print(f"[SERIALIZATION ERROR] {e}", file=sys.stderr)
+        err_payload = json.dumps({"error": f"Serialization failed: {e}"}).encode("ascii", "ignore")
+        return Response(content=err_payload, status_code=500, media_type="application/json")
 
 
 @app.post("/query")
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 def query(request: Request, req: QueryRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
     sanitized_prompt = _sanitize_text(req.prompt)
@@ -346,14 +384,22 @@ def query(request: Request, req: QueryRequest, x_session_id: Optional[str] = Hea
     if len(sanitized_prompt) > MAX_PROMPT_LEN:
         raise HTTPException(status_code=400, detail=f"Query too long (max {MAX_PROMPT_LEN} chars)")
 
+    # RE-INJECTED LOSS LOGIC HERE
     result = run_query(sanitized_prompt, sid)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return result
+
+    # Defensive ASCII encoding for Windows
+    try:
+        json_data = json.dumps(result, default=str)
+        return Response(content=json_data.encode("ascii", "ignore"), media_type="application/json")
+    except Exception as e:
+        err_payload = json.dumps({"error": f"Serialization failed: {e}"}).encode("ascii", "ignore")
+        return Response(content=err_payload, status_code=500, media_type="application/json")
 
 
 @app.post("/refine")
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 def refine(request: Request, req: RefineRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
     sanitized_msg = _sanitize_text(req.message)
@@ -365,11 +411,18 @@ def refine(request: Request, req: RefineRequest, x_session_id: Optional[str] = H
     result = run_refine(sanitized_msg, sid, _sanitize_text(req.original_prompt) or "")
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    
+    # Defensive ASCII encoding for Windows
+    try:
+        json_data = json.dumps(result, default=str)
+        return Response(content=json_data.encode("ascii", "ignore"), media_type="application/json")
+    except Exception as e:
+        err_payload = json.dumps({"error": f"Serialization failed: {e}"}).encode("ascii", "ignore")
+        return Response(content=err_payload, status_code=500, media_type="application/json")
 
 
 @app.post("/chat")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def chat(request: Request, req: ChatRequest, x_session_id: Optional[str] = Header(None)):
     sid = _get_sid(x_session_id)
     sanitized_msg = _sanitize_text(req.message)
@@ -384,24 +437,30 @@ def chat(request: Request, req: ChatRequest, x_session_id: Optional[str] = Heade
     sess = get_session(sid)
     if sess:
         sess.chat_history.append({"role": "user", "content": sanitized_msg})
-        # Pass all history except the current message just appended
-        result = run_chat(sanitized_msg, sess.chat_history[:-1], sid, req.context)
-        if "error" not in result:
-            sess.chat_history.append({"role": "assistant", "content": result.get("response", "")})
-            set_session(sid, sess)
-        else:
-            sess.chat_history.pop()
+        history = sess.chat_history[:-1]
     else:
-        result = run_chat(sanitized_msg, req.history or [], sid, req.context)
+        history = req.history or []
 
+    result = run_chat(sanitized_msg, history, sid, req.context)
+    
+    if "error" not in result and sess:
+        sess.chat_history.append({"role": "assistant", "content": result.get("response", "")})
+        set_session(sid, sess)
+    
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
-    return result
+    
+    # Defensive ASCII encoding for Windows
+    try:
+        json_data = json.dumps(result, default=str)
+        return Response(content=json_data.encode("ascii", "ignore"), media_type="application/json")
+    except Exception as e:
+        err_payload = json.dumps({"error": f"Serialization failed: {e}"}).encode("ascii", "ignore")
+        return Response(content=err_payload, status_code=500, media_type="application/json")
 
 
 @app.delete("/history")
 def clear_history(x_session_id: Optional[str] = Header(None)):
-    """Clear query history for this session but keep the dataset loaded."""
     sid  = _get_sid(x_session_id)
     sess = get_session(sid)
     if sess:
@@ -411,13 +470,8 @@ def clear_history(x_session_id: Optional[str] = Header(None)):
 
 
 @app.post("/overview")
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def dataset_overview(request: Request, x_session_id: Optional[str] = Header(None)):
-    """
-    Generate an AI overview of the loaded dataset.
-    Called once after dataset loads. Returns a plain-English summary
-    plus a structured breakdown of column groups.
-    """
     from query_pipeline import call_llm
     from schema_context import build_schema_context
 
@@ -429,51 +483,22 @@ def dataset_overview(request: Request, x_session_id: Optional[str] = Header(None
     schema = sess.schema
     ctx    = build_schema_context(schema)
 
-    prompt = f"""You are a data analyst. A dataset has just been loaded. Give a concise overview.
-
+    prompt = f"""You are a data analyst. Give a concise overview of this dataset.
 SCHEMA:
 {ctx}
-
-Respond with ONLY valid JSON — no markdown, no backticks:
+Respond with ONLY valid JSON:
 {{
-  "summary": "2-3 sentence plain-English description of what this dataset contains, who the subjects are, and what questions it can answer. Write for someone unfamiliar with the data.",
-  "expert_note": "1-2 sentences pointing out the most analytically interesting structure — e.g. skewed distributions, notable correlations expected, any caveats about ambiguous columns. Write for someone who knows data.",
-  "column_groups": [
-    {{"group": "Group name", "columns": ["col1", "col2"], "description": "Short description"}}
-  ],
-  "suggested_questions": [
-    "Question 1",
-    "Question 2",
-    "Question 3"
-  ]
+  "summary": "...",
+  "expert_note": "...",
+  "column_groups": [...],
+  "suggested_questions": [...]
 }}
-
-Rules:
-- column_groups: 3-5 logical groups (demographics, behaviour, spending, psychographic, etc.)
-- suggested_questions: exactly 3, specific to this dataset's columns, answerable with the data
-- Use safe_names for columns in column_groups
-- Keep summary under 60 words
-- Keep expert_note under 40 words
 """
-
     result = call_llm(prompt)
-
-    # Validate — if LLM returned a cannot_answer fallback, return a default
     if result.get("cannot_answer"):
-        return {
-            "summary": f"Dataset with {schema.row_count:,} rows and {len(schema.columns)} columns.",
-            "expert_note": "Load the dataset and explore the columns to understand the structure.",
-            "column_groups": [],
-            "suggested_questions": [],
-        }
+        return {"summary": "Dataset loaded.", "expert_note": "", "column_groups": [], "suggested_questions": []}
 
-    return {
-        "summary":            result.get("summary", ""),
-        "expert_note":        result.get("expert_note", ""),
-        "column_groups":      result.get("column_groups", []),
-        "suggested_questions": result.get("suggested_questions", []),
-    }
-
+    return result
 
 
 @app.get("/history")
